@@ -1,0 +1,38 @@
+version: "3.8"
+services:
+
+  postgres:
+    image: postgres:13
+    # ports:
+    #   - "${POSTRES_PORT:-5432}:5432"
+    volumes:
+      - .docker-data/pg:/var/lib/postgresql/data
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    labels:
+      - "traefik.enable=true"
+      - "traefik.tcp.routers.postgres.entrypoints=postgres"
+      - "traefik.tcp.routers.postgres.rule=HostSNI(`*`)"
+      - "traefik.tcp.routers.postgres.tls=false"
+      - "traefik.tcp.services.postgres.loadBalancer.server.port=5432"
+
+  traefik:
+    image: "traefik:v2.8"
+    command:
+      - "--api.insecure=true"
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--entrypoints.web.address=:80"
+      - "--entrypoints.postgres.address=:5432"
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock:ro"
+    ports:
+      - "80:80"
+      - "8080:8080"
+      - "5432:5432"
