@@ -1,15 +1,16 @@
 version: "3.8"
 services:
 
-  postgres:
+  pg1:
     image: postgres:13
-    # ports:
-    #   - "${POSTRES_PORT:-5432}:5432"
+    ports:
+      - 15432:5432
     volumes:
-      - .docker-data/pg:/var/lib/postgresql/data
+      # - ./certs:/etc/certs:ro
+      - .docker-data/pg1:/var/lib/postgresql/data
     environment:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
-    restart: unless-stopped
+    # command: postgres -c ssl=on -c ssl_cert_file=/etc/certs/local-cert.pem -c ssl_key_file=/etc/certs/local-key.pem
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 5s
@@ -17,22 +18,42 @@ services:
       retries: 20
     labels:
       - "traefik.enable=true"
-      - "traefik.tcp.routers.postgres.entrypoints=postgres"
-      - "traefik.tcp.routers.postgres.rule=HostSNI(`*`)"
-      - "traefik.tcp.routers.postgres.tls=false"
-      - "traefik.tcp.services.postgres.loadBalancer.server.port=5432"
+      - "traefik.tcp.services.pg1.loadBalancer.server.port=5432"
+      - "traefik.tcp.routers.pg1.entrypoints=postgres"
+      - "traefik.tcp.routers.pg1.rule=HostSNI(`*`)"
+      # - "traefik.tcp.routers.pg1.rule=HostSNI(`pg1.docker.localhost`)"
+      # - "traefik.tcp.routers.pg1.tls=false"
 
-  traefik:
-    image: "traefik:v2.8"
-    command:
-      - "--api.insecure=true"
-      - "--providers.docker=true"
-      - "--providers.docker.exposedbydefault=false"
-      - "--entrypoints.web.address=:80"
-      - "--entrypoints.postgres.address=:5432"
-    volumes:
-      - "/var/run/docker.sock:/var/run/docker.sock:ro"
+  pg2:
+    image: postgres:13
     ports:
-      - "80:80"
-      - "8080:8080"
-      - "5432:5432"
+      - 25432:5432
+    volumes:
+      # - ./certs:/etc/certs:ro
+      - .docker-data/pg2:/var/lib/postgresql/data
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+    # command: postgres -c ssl=on -c ssl_cert_file=/etc/certs/local-cert.pem -c ssl_key_file=/etc/certs/local-key.pem
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    labels:
+      - "traefik.enable=true"
+      - "traefik.tcp.services.pg2.loadBalancer.server.port=5432"
+      - "traefik.tcp.routers.pg2.entrypoints=postgres"
+      - "traefik.tcp.routers.pg2.rule=HostSNI(`*`)"
+      # - "traefik.tcp.routers.pg2.rule=HostSNI(`pg2.docker.localhost`)"
+      # - "traefik.tcp.routers.pg2.tls=false"
+
+  proxy:
+    # image: marcopeg/traefik-local-tls
+    build: .
+    ports:
+      - 80:80
+      - 443:443
+      - 5432:5432
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./certs:/etc/certs:ro
